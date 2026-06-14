@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   caseIVCards,
   caseIVQuestions,
@@ -21,14 +21,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function pickQuestion(pool: CaseIVQuestion[]): {
-  q: CaseIVQuestion;
-  choices: Choice[];
-} {
+function pickQuestion(pool: CaseIVQuestion[]): { q: CaseIVQuestion; choices: Choice[] } {
   const q = pool[Math.floor(Math.random() * pool.length)];
-  const choices = shuffle(
-    q.choices.map((text, i) => ({ text, correct: i === q.answerIndex }))
-  );
+  const choices = shuffle(q.choices.map((text, i) => ({ text, correct: i === q.answerIndex })));
   return { q, choices };
 }
 
@@ -38,8 +33,7 @@ function Flashcards({ topic }: { topic: string }) {
   const [flipped, setFlipped] = useState(false);
 
   const cards = useMemo(
-    () =>
-      topic === ALL ? caseIVCards : caseIVCards.filter((c) => c.topic === topic),
+    () => (topic === ALL ? caseIVCards : caseIVCards.filter((c) => c.topic === topic)),
     [topic]
   );
 
@@ -99,10 +93,7 @@ function Flashcards({ topic }: { topic: string }) {
 // ── クイズ ────────────────────────────────────────────────
 function Quiz({ topic }: { topic: string }) {
   const pool = useMemo(
-    () =>
-      topic === ALL
-        ? caseIVQuestions
-        : caseIVQuestions.filter((q) => q.topic === topic),
+    () => (topic === ALL ? caseIVQuestions : caseIVQuestions.filter((q) => q.topic === topic)),
     [topic]
   );
 
@@ -115,33 +106,31 @@ function Quiz({ topic }: { topic: string }) {
   const selectedChoice = selected === "" ? null : choices[Number(selected)];
   const isCorrect = selectedChoice?.correct ?? false;
 
-  const next = useCallback(() => {
+  const next = () => {
     const newPool =
-      topic === ALL
-        ? caseIVQuestions
-        : caseIVQuestions.filter((q) => q.topic === topic);
+      topic === ALL ? caseIVQuestions : caseIVQuestions.filter((q) => q.topic === topic);
     setCurrent(pickQuestion(newPool));
     setSelected("");
     setSubmitted(false);
-  }, [topic]);
+  };
 
   const handleSubmit = () => {
     if (selected === "") return;
     setSubmitted(true);
-    setScore((s) => ({
-      correct: s.correct + (isCorrect ? 1 : 0),
-      total: s.total + 1,
-    }));
+    setScore((s) => ({ correct: s.correct + (isCorrect ? 1 : 0), total: s.total + 1 }));
   };
 
   return (
     <div>
-      <div className="progress">
-        正解 {score.correct} / {score.total} 問
-      </div>
+      <div className="progress">正解 {score.correct} / {score.total} 問</div>
 
       <div className="quiz-question">
-        <div className="topic-badge topic-badge-inline">{q.topic}</div>
+        <div className="quiz-question-header">
+          <div className="topic-badge topic-badge-inline">{q.topic}</div>
+          <div className={`question-tag ${q.tag === "ボックス図・逆算型" ? "tag-box" : "tag-formula"}`}>
+            {q.tag}
+          </div>
+        </div>
         {q.question}
       </div>
 
@@ -167,11 +156,7 @@ function Quiz({ topic }: { topic: string }) {
 
       {!submitted ? (
         <div className="btn-row">
-          <button
-            className="btn btn-primary"
-            onClick={handleSubmit}
-            disabled={selected === ""}
-          >
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={selected === ""}>
             回答する
           </button>
         </div>
@@ -180,9 +165,7 @@ function Quiz({ topic }: { topic: string }) {
           <div className={`result ${isCorrect ? "correct" : "wrong"}`}>
             <div className="verdict">{isCorrect ? "⭕ 正解！" : "❌ 不正解"}</div>
             {!isCorrect && (
-              <div className="answer-name">
-                正解：{choices.find((c) => c.correct)?.text}
-              </div>
+              <div className="answer-name">正解：{choices.find((c) => c.correct)?.text}</div>
             )}
             <div className="explanation">{q.explanation}</div>
           </div>
@@ -202,13 +185,8 @@ export default function CaseIV() {
   const [subMode, setSubMode] = useState<SubMode>("flashcard");
   const [topic, setTopic] = useState<string>(ALL);
 
-  const onTopicChange = (value: string) => {
-    setTopic(value);
-  };
-
   return (
     <div>
-      {/* 小タブ */}
       <div className="subtabs">
         <button
           className={`subtab ${subMode === "flashcard" ? "active" : ""}`}
@@ -224,11 +202,10 @@ export default function CaseIV() {
         </button>
       </div>
 
-      {/* 論点フィルタ */}
       <select
         className="select"
         value={topic}
-        onChange={(e) => onTopicChange(e.target.value)}
+        onChange={(e) => setTopic(e.target.value)}
         aria-label="論点を選択"
       >
         <option value={ALL}>すべての論点</option>
@@ -239,7 +216,6 @@ export default function CaseIV() {
         ))}
       </select>
 
-      {/* コンテンツ */}
       {subMode === "flashcard" ? (
         <Flashcards key={topic} topic={topic} />
       ) : (

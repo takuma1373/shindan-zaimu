@@ -165,6 +165,40 @@ button {
   margin-left: 6px;
 }
 
+/* 問題タイプタグ（事例Ⅳ） */
+.quiz-question-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.quiz-question-header .topic-badge {
+  margin-bottom: 0;
+}
+
+.question-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
+.tag-formula {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.tag-box {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
 /* フラッシュカード */
 .flashcard {
   background: var(--card);
