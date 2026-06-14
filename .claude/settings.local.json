@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"next-server\")",
+      "Read(//private/tmp/**)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(cat)",
+      "Bash(node /tmp/check-data.mjs)",
+      "Read(//Users/abetakuma/.npm/_cacache/**)",
+      "Bash(lsof -nP -iTCP:3000 -sTCP:LISTEN)",
+      "Skill(claude-api)",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\('sdk', require\\('@anthropic-ai/sdk/package.json'\\).version\\); console.log\\('zod', require\\('zod/package.json'\\).version\\)\")"
+    ]
+  }
+}
