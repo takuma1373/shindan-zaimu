@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { flashcards, topics } from "@/data/formulas";
+import {
+  getMastery,
+  getRecord,
+  MASTERY_CSS,
+  MASTERY_LABEL,
+  recordAnswer,
+  SRMRecord,
+} from "@/lib/srm";
 
 const ALL = "すべて";
 
@@ -12,11 +20,22 @@ type GeneratedCard = {
 };
 
 type DisplayCard = {
+  id: string;
   topic: string;
   front: string;
   back: string;
   explanation: string;
+  isGenerated: boolean;
 };
+
+function MasteryBadge({ id }: { id: string }) {
+  const [record, setRecord] = useState<SRMRecord | null>(null);
+  useEffect(() => { setRecord(getRecord(id)); }, [id]);
+  const mastery = getMastery(record);
+  return (
+    <span className={`mastery-badge ${MASTERY_CSS[mastery]}`}>{MASTERY_LABEL[mastery]}</span>
+  );
+}
 
 export default function Flashcard() {
   const [topic, setTopic] = useState<string>(ALL);
@@ -25,14 +44,21 @@ export default function Flashcard() {
   const [generated, setGenerated] = useState<GeneratedCard[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [lastAnswer, setLastAnswer] = useState<boolean | null>(null);
 
   const staticCards: DisplayCard[] = useMemo(
-    () => (topic === ALL ? flashcards : flashcards.filter((c) => c.topic === topic)),
+    () =>
+      (topic === ALL ? flashcards : flashcards.filter((c) => c.topic === topic)).map((c) => ({
+        ...c,
+        isGenerated: false,
+      })),
     [topic]
   );
 
   const cards: DisplayCard[] =
-    topic === ALL ? staticCards : generated?.map((c) => ({ ...c, topic })) ?? [];
+    topic === ALL
+      ? staticCards
+      : generated?.map((c, i) => ({ ...c, id: `ai_${topic}_${i}`, topic, isGenerated: true })) ?? [];
 
   const fetchCards = useCallback(async (t: string) => {
     setLoading(true);
@@ -56,6 +82,7 @@ export default function Flashcard() {
 
   const go = (delta: number) => {
     setFlipped(false);
+    setLastAnswer(null);
     setIndex((i) => (i + delta + cards.length) % cards.length);
   };
 
@@ -63,12 +90,21 @@ export default function Flashcard() {
     setTopic(value);
     setIndex(0);
     setFlipped(false);
+    setLastAnswer(null);
     if (value !== ALL) {
       fetchCards(value);
     } else {
       setGenerated(null);
       setError(false);
     }
+  };
+
+  const card = cards[index];
+
+  const handleSRM = (correct: boolean) => {
+    if (!card || card.isGenerated) return;
+    recordAnswer(card.id, correct);
+    setLastAnswer(correct);
   };
 
   const topicSelect = (
@@ -80,9 +116,7 @@ export default function Flashcard() {
     >
       <option value={ALL}>すべての論点</option>
       {topics.map((t) => (
-        <option key={t} value={t}>
-          {t}
-        </option>
+        <option key={t} value={t}>{t}</option>
       ))}
     </select>
   );
@@ -102,9 +136,7 @@ export default function Flashcard() {
         {topicSelect}
         <div className="progress">生成に失敗しました</div>
         <div className="btn-row">
-          <button className="btn btn-primary" onClick={() => fetchCards(topic)}>
-            再試行
-          </button>
+          <button className="btn btn-primary" onClick={() => fetchCards(topic)}>再試行</button>
         </div>
       </div>
     );
@@ -119,8 +151,6 @@ export default function Flashcard() {
     );
   }
 
-  const card = cards[index];
-
   return (
     <div>
       {topicSelect}
@@ -132,14 +162,17 @@ export default function Flashcard() {
 
       <div
         className="flashcard"
-        onClick={() => setFlipped((f) => !f)}
+        onClick={() => { setFlipped((f) => !f); setLastAnswer(null); }}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") setFlipped((f) => !f);
+          if (e.key === "Enter" || e.key === " ") { setFlipped((f) => !f); setLastAnswer(null); }
         }}
       >
-        <div className="topic-badge">{card.topic}</div>
+        <div className="flashcard-header-row">
+          <div className="topic-badge" style={{ margin: 0 }}>{card.topic}</div>
+          {!card.isGenerated && <MasteryBadge id={card.id} />}
+        </div>
         {flipped ? (
           <>
             <div className="face-label">うら（公式・要点）</div>
@@ -155,23 +188,27 @@ export default function Flashcard() {
         <div className="hint">タップで{flipped ? "おもて" : "うら"}に切り替え</div>
       </div>
 
+      {flipped && !card.isGenerated && lastAnswer === null && (
+        <div className="btn-row">
+          <button className="btn srm-btn-wrong" onClick={(e) => { e.stopPropagation(); handleSRM(false); }}>もう一度</button>
+          <button className="btn srm-btn-correct" onClick={(e) => { e.stopPropagation(); handleSRM(true); }}>覚えた ✓</button>
+        </div>
+      )}
+      {lastAnswer !== null && (
+        <div className={`srm-recorded ${lastAnswer ? "srm-correct" : "srm-wrong"}`}>
+          {lastAnswer ? "✓ 記録しました（覚えた）" : "↩ 記録しました（もう一度）"}
+        </div>
+      )}
+
       <div className="btn-row">
-        <button className="btn" onClick={() => go(-1)}>
-          ← 前へ
-        </button>
-        <button className="btn btn-primary" onClick={() => setFlipped((f) => !f)}>
-          裏返す
-        </button>
-        <button className="btn" onClick={() => go(1)}>
-          次へ →
-        </button>
+        <button className="btn" onClick={() => go(-1)}>← 前へ</button>
+        <button className="btn btn-primary" onClick={() => { setFlipped((f) => !f); setLastAnswer(null); }}>裏返す</button>
+        <button className="btn" onClick={() => go(1)}>次へ →</button>
       </div>
 
       {topic !== ALL && (
         <div className="btn-row">
-          <button className="btn" onClick={() => fetchCards(topic)}>
-            再生成
-          </button>
+          <button className="btn" onClick={() => fetchCards(topic)}>再生成</button>
         </div>
       )}
     </div>

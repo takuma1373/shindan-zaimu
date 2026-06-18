@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { topics } from "@/data/formulas";
+import {
+  getMastery,
+  getRecord,
+  MASTERY_CSS,
+  MASTERY_LABEL,
+  recordAnswer,
+  SRMRecord,
+} from "@/lib/srm";
 
 const ALL = "すべて";
 
@@ -22,6 +30,19 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+function topicSRMId(topic: string) {
+  return `aitopic_${topic}`;
+}
+
+function TopicMasteryBadge({ topic }: { topic: string }) {
+  const [record, setRecord] = useState<SRMRecord | null>(null);
+  useEffect(() => { setRecord(getRecord(topicSRMId(topic))); }, [topic]);
+  const mastery = getMastery(record);
+  return (
+    <span className={`mastery-badge ${MASTERY_CSS[mastery]}`}>{MASTERY_LABEL[mastery]}</span>
+  );
 }
 
 export default function Quiz() {
@@ -83,9 +104,7 @@ export default function Quiz() {
     >
       <option value={ALL}>すべての論点</option>
       {topics.map((t) => (
-        <option key={t} value={t}>
-          {t}
-        </option>
+        <option key={t} value={t}>{t}</option>
       ))}
     </select>
   );
@@ -111,9 +130,7 @@ export default function Quiz() {
         {scoreDisplay}
         <div className="progress">生成に失敗しました</div>
         <div className="btn-row">
-          <button className="btn btn-primary" onClick={() => newQuestion(topic)}>
-            再試行
-          </button>
+          <button className="btn btn-primary" onClick={() => newQuestion(topic)}>再試行</button>
         </div>
       </div>
     );
@@ -140,6 +157,7 @@ export default function Quiz() {
       correct: s.correct + (isCorrect ? 1 : 0),
       total: s.total + 1,
     }));
+    recordAnswer(topicSRMId(effectiveTopic), isCorrect);
   };
 
   return (
@@ -148,13 +166,14 @@ export default function Quiz() {
       {scoreDisplay}
 
       <div className="quiz-question">
-        <div className="topic-badge topic-badge-inline">{effectiveTopic}</div>
+        <div className="quiz-question-header">
+          <div className="topic-badge topic-badge-inline">{effectiveTopic}</div>
+          <TopicMasteryBadge topic={effectiveTopic} />
+        </div>
         {quiz.question}
       </div>
 
-      <label className="quiz-label" htmlFor="answer">
-        正しい選択肢を選んでください
-      </label>
+      <label className="quiz-label" htmlFor="answer">正しい選択肢を選んでください</label>
       <select
         id="answer"
         className="select"
@@ -162,41 +181,27 @@ export default function Quiz() {
         disabled={submitted}
         onChange={(e) => setSelected(e.target.value)}
       >
-        <option value="" disabled>
-          ― 選択してください ―
-        </option>
+        <option value="" disabled>― 選択してください ―</option>
         {choices.map((c, i) => (
-          <option key={i} value={String(i)}>
-            {c.text}
-          </option>
+          <option key={i} value={String(i)}>{c.text}</option>
         ))}
       </select>
 
       {!submitted ? (
         <div className="btn-row">
-          <button
-            className="btn btn-primary"
-            onClick={handleSubmit}
-            disabled={selected === ""}
-          >
-            回答する
-          </button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={selected === ""}>回答する</button>
         </div>
       ) : (
         <>
           <div className={`result ${isCorrect ? "correct" : "wrong"}`}>
             <div className="verdict">{isCorrect ? "⭕ 正解！" : "❌ 不正解"}</div>
             {!isCorrect && (
-              <div className="answer-name">
-                正解：{choices.find((c) => c.correct)?.text}
-              </div>
+              <div className="answer-name">正解：{choices.find((c) => c.correct)?.text}</div>
             )}
             <div className="explanation">{quiz.explanation}</div>
           </div>
           <div className="btn-row">
-            <button className="btn btn-primary" onClick={() => newQuestion(topic)}>
-              次の問題 →
-            </button>
+            <button className="btn btn-primary" onClick={() => newQuestion(topic)}>次の問題 →</button>
           </div>
         </>
       )}

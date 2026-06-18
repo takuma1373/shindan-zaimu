@@ -1,14 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Flashcard from "@/components/Flashcard";
 import Quiz from "@/components/Quiz";
 import CaseIV from "@/components/CaseIV";
+import ReviewTab from "@/components/ReviewTab";
+import { getAllRecords, isDue } from "@/lib/srm";
 
-type Mode = "flashcard" | "quiz" | "caseiv";
+type Mode = "flashcard" | "quiz" | "caseiv" | "review";
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("flashcard");
+  const [dueCount, setDueCount] = useState(0);
+
+  useEffect(() => {
+    const update = () => {
+      const records = getAllRecords();
+      setDueCount(records.filter(isDue).length);
+    };
+    update();
+    // refresh when returning to page
+    window.addEventListener("focus", update);
+    return () => window.removeEventListener("focus", update);
+  }, []);
+
+  // refresh due count when switching tabs
+  const switchMode = (m: Mode) => {
+    setMode(m);
+    if (m === "review") {
+      const records = getAllRecords();
+      setDueCount(records.filter(isDue).length);
+    }
+  };
 
   return (
     <main className="app">
@@ -20,24 +43,32 @@ export default function Home() {
       <nav className="tabs">
         <button
           className={`tab ${mode === "flashcard" ? "active" : ""}`}
-          onClick={() => setMode("flashcard")}
+          onClick={() => switchMode("flashcard")}
         >
-          フラッシュカード
+          カード
           <span className="tab-sub">1次対応</span>
         </button>
         <button
           className={`tab ${mode === "quiz" ? "active" : ""}`}
-          onClick={() => setMode("quiz")}
+          onClick={() => switchMode("quiz")}
         >
-          公式クイズ
+          クイズ
           <span className="tab-sub">1次対応</span>
         </button>
         <button
           className={`tab ${mode === "caseiv" ? "active" : ""}`}
-          onClick={() => setMode("caseiv")}
+          onClick={() => switchMode("caseiv")}
         >
-          事例Ⅳ演習
+          事例Ⅳ
           <span className="tab-sub">2次対応</span>
+        </button>
+        <button
+          className={`tab ${mode === "review" ? "active" : ""}`}
+          onClick={() => switchMode("review")}
+        >
+          復習
+          {dueCount > 0 && <span className="tab-due-badge">{dueCount}</span>}
+          <span className="tab-sub">学習管理</span>
         </button>
       </nav>
 
@@ -45,6 +76,7 @@ export default function Home() {
         {mode === "flashcard" && <Flashcard />}
         {mode === "quiz" && <Quiz />}
         {mode === "caseiv" && <CaseIV />}
+        {mode === "review" && <ReviewTab />}
       </section>
     </main>
   );

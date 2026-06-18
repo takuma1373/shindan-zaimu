@@ -1,12 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   caseIVCards,
   caseIVQuestions,
   caseIVTopics,
   type CaseIVQuestion,
 } from "@/data/caseiv";
+import {
+  getMastery,
+  getRecord,
+  MASTERY_CSS,
+  MASTERY_LABEL,
+  recordAnswer,
+  SRMRecord,
+} from "@/lib/srm";
 
 const ALL = "すべて";
 type SubMode = "flashcard" | "quiz";
@@ -27,10 +35,21 @@ function pickQuestion(pool: CaseIVQuestion[]): { q: CaseIVQuestion; choices: Cho
   return { q, choices };
 }
 
-// ── フラッシュカード ──────────────────────────────────────
+// ── Mastery badge ─────────────────────────────────────
+function MasteryBadge({ id }: { id: string }) {
+  const [record, setRecord] = useState<SRMRecord | null>(null);
+  useEffect(() => { setRecord(getRecord(id)); }, [id]);
+  const mastery = getMastery(record);
+  return (
+    <span className={`mastery-badge ${MASTERY_CSS[mastery]}`}>{MASTERY_LABEL[mastery]}</span>
+  );
+}
+
+// ── フラッシュカード ──────────────────────────────────
 function Flashcards({ topic }: { topic: string }) {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const [lastAnswer, setLastAnswer] = useState<boolean | null>(null);
 
   const cards = useMemo(
     () => (topic === ALL ? caseIVCards : caseIVCards.filter((c) => c.topic === topic)),
@@ -41,7 +60,13 @@ function Flashcards({ topic }: { topic: string }) {
 
   const go = (delta: number) => {
     setFlipped(false);
+    setLastAnswer(null);
     setIndex((i) => (i + delta + cards.length) % cards.length);
+  };
+
+  const handleSRM = (correct: boolean) => {
+    recordAnswer(card.id, correct);
+    setLastAnswer(correct);
   };
 
   return (
@@ -52,14 +77,17 @@ function Flashcards({ topic }: { topic: string }) {
 
       <div
         className="flashcard"
-        onClick={() => setFlipped((f) => !f)}
+        onClick={() => { setFlipped((f) => !f); setLastAnswer(null); }}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") setFlipped((f) => !f);
+          if (e.key === "Enter" || e.key === " ") { setFlipped((f) => !f); setLastAnswer(null); }
         }}
       >
-        <div className="topic-badge">{card.topic}</div>
+        <div className="flashcard-header-row">
+          <div className="topic-badge" style={{ margin: 0 }}>{card.topic}</div>
+          <MasteryBadge id={card.id} />
+        </div>
         {flipped ? (
           <>
             <div className="face-label">うら（公式・要点）</div>
@@ -75,22 +103,28 @@ function Flashcards({ topic }: { topic: string }) {
         <div className="hint">タップで{flipped ? "おもて" : "うら"}に切り替え</div>
       </div>
 
+      {flipped && lastAnswer === null && (
+        <div className="btn-row">
+          <button className="btn srm-btn-wrong" onClick={(e) => { e.stopPropagation(); handleSRM(false); }}>もう一度</button>
+          <button className="btn srm-btn-correct" onClick={(e) => { e.stopPropagation(); handleSRM(true); }}>覚えた ✓</button>
+        </div>
+      )}
+      {lastAnswer !== null && (
+        <div className={`srm-recorded ${lastAnswer ? "srm-correct" : "srm-wrong"}`}>
+          {lastAnswer ? "✓ 記録しました（覚えた）" : "↩ 記録しました（もう一度）"}
+        </div>
+      )}
+
       <div className="btn-row">
-        <button className="btn" onClick={() => go(-1)}>
-          ← 前へ
-        </button>
-        <button className="btn btn-primary" onClick={() => setFlipped((f) => !f)}>
-          裏返す
-        </button>
-        <button className="btn" onClick={() => go(1)}>
-          次へ →
-        </button>
+        <button className="btn" onClick={() => go(-1)}>← 前へ</button>
+        <button className="btn btn-primary" onClick={() => { setFlipped((f) => !f); setLastAnswer(null); }}>裏返す</button>
+        <button className="btn" onClick={() => go(1)}>次へ →</button>
       </div>
     </div>
   );
 }
 
-// ── クイズ ────────────────────────────────────────────────
+// ── クイズ ────────────────────────────────────────────
 function Quiz({ topic }: { topic: string }) {
   const pool = useMemo(
     () => (topic === ALL ? caseIVQuestions : caseIVQuestions.filter((q) => q.topic === topic)),
@@ -118,6 +152,7 @@ function Quiz({ topic }: { topic: string }) {
     if (selected === "") return;
     setSubmitted(true);
     setScore((s) => ({ correct: s.correct + (isCorrect ? 1 : 0), total: s.total + 1 }));
+    recordAnswer(q.id, isCorrect);
   };
 
   return (
@@ -130,13 +165,12 @@ function Quiz({ topic }: { topic: string }) {
           <div className={`question-tag ${q.tag === "ボックス図・逆算型" ? "tag-box" : "tag-formula"}`}>
             {q.tag}
           </div>
+          <MasteryBadge id={q.id} />
         </div>
         {q.question}
       </div>
 
-      <label className="quiz-label" htmlFor="caseiv-answer">
-        正しい選択肢を選んでください
-      </label>
+      <label className="quiz-label" htmlFor="caseiv-answer">正しい選択肢を選んでください</label>
       <select
         id="caseiv-answer"
         className="select"
@@ -144,21 +178,15 @@ function Quiz({ topic }: { topic: string }) {
         disabled={submitted}
         onChange={(e) => setSelected(e.target.value)}
       >
-        <option value="" disabled>
-          ― 選択してください ―
-        </option>
+        <option value="" disabled>― 選択してください ―</option>
         {choices.map((c, i) => (
-          <option key={i} value={String(i)}>
-            {c.text}
-          </option>
+          <option key={i} value={String(i)}>{c.text}</option>
         ))}
       </select>
 
       {!submitted ? (
         <div className="btn-row">
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={selected === ""}>
-            回答する
-          </button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={selected === ""}>回答する</button>
         </div>
       ) : (
         <>
@@ -170,9 +198,7 @@ function Quiz({ topic }: { topic: string }) {
             <div className="explanation">{q.explanation}</div>
           </div>
           <div className="btn-row">
-            <button className="btn btn-primary" onClick={next}>
-              次の問題 →
-            </button>
+            <button className="btn btn-primary" onClick={next}>次の問題 →</button>
           </div>
         </>
       )}
@@ -180,7 +206,7 @@ function Quiz({ topic }: { topic: string }) {
   );
 }
 
-// ── メインコンポーネント ──────────────────────────────────
+// ── メインコンポーネント ──────────────────────────────
 export default function CaseIV() {
   const [subMode, setSubMode] = useState<SubMode>("flashcard");
   const [topic, setTopic] = useState<string>(ALL);
@@ -210,9 +236,7 @@ export default function CaseIV() {
       >
         <option value={ALL}>すべての論点</option>
         {caseIVTopics.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
+          <option key={t} value={t}>{t}</option>
         ))}
       </select>
 
