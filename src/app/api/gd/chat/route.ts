@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 const client = new Anthropic();
 
+// 3つのmodeを1つのエンドポイントに集約した理由：
+// discuss / realtime_feedback / final_evaluation はすべて「GDに関するAI処理」で
+// 本質的に同じリクエスト構造（history + userMessage → JSON）を持つ。
+// エンドポイントを分けると /api/gd/discuss, /api/gd/feedback, /api/gd/eval と
+// 3ファイル管理が必要になるが、modeフラグで切り替えれば1ファイルで済む。
 function getSystemPrompt(mode: string, theme: string): string {
   if (mode === "discuss") {
     return `あなたはグループディスカッション（GD）の練習相手です。テーマ「${theme}」について、3人のAIキャラクターとして発言します。
@@ -30,12 +35,15 @@ function getSystemPrompt(mode: string, theme: string): string {
   return "";
 }
 
+// parseJSONを別関数として切り出した理由：
+// プロンプトで「JSONのみ返せ」と指示しても、Claudeが
+// ```json ... ``` のようなマークダウン記法で囲むことがある。
+// まず素直にJSON.parseを試み、失敗したらコードフェンスを除去して再試行する。
+// この2段階処理をPOST本体に書くと読みにくくなるため関数に分離した。
 function parseJSON(text: string): unknown {
-  // Try direct parse first
   try {
     return JSON.parse(text);
   } catch {
-    // Strip markdown code fences and retry
     const cleaned = text
       .replace(/```json\s*/gi, "")
       .replace(/```\s*/g, "")
@@ -50,12 +58,18 @@ export async function POST(req: NextRequest) {
   try {
     const systemPrompt = getSystemPrompt(mode, theme);
 
+    // historyをリクエストごとに全件送る理由：
+    // Claude APIはステートレス（サーバー側に会話を保存しない）。
+    // 前の発言内容をAIに覚えさせるには、毎回「今までの会話全部」を
+    // messages配列に含めて送るしかない。
     const messages: Anthropic.MessageParam[] = [
       ...history,
       { role: "user", content: userMessage },
     ];
 
     const response = await client.messages.create({
+      // Sonnetを使う理由：GDのロールプレイと評価は文脈理解・表現の質が重要で、
+      // Haiku（簡易モデル）では発言のバリエーションや評価の深みが不足する。
       model: "claude-sonnet-4-6",
       max_tokens: 1500,
       system: systemPrompt,

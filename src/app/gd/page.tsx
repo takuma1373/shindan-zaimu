@@ -169,13 +169,77 @@ export default function GDPage() {
   const [elapsed, setElapsed] = useState(0);
   const [finalEvaluation, setFinalEvaluation] = useState<FinalEvaluation | null>(null);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [hasSpeechSupport, setHasSpeechSupport] = useState(false);
+
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+  const recordingBaseRef = useRef("");
+  const finalAccRef = useRef("");
 
   // Auto-scroll
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // SpeechRecognition support check
+  useEffect(() => {
+    setHasSpeechSupport(
+      typeof window !== "undefined" &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ("SpeechRecognition" in window || "webkitSpeechRecognition" in (window as any))
+    );
+  }, []);
+
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const recognition = new SR();
+    recognition.lang = "ja-JP";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recordingBaseRef.current = inputText;
+    finalAccRef.current = "";
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      let newFinal = "";
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) newFinal += t;
+        else interim += t;
+      }
+      if (newFinal) {
+        const sep = finalAccRef.current ? "" : recordingBaseRef.current ? " " : "";
+        finalAccRef.current += sep + newFinal;
+      }
+      const base = recordingBaseRef.current + finalAccRef.current;
+      setInputText(base + (interim ? interim : ""));
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+      setInputText(recordingBaseRef.current + finalAccRef.current);
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  }, [isRecording, inputText]);
 
   // Timer
   useEffect(() => {
@@ -656,6 +720,8 @@ export default function GDPage() {
     >
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes mic-pulse { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(220,38,38,0.5); } 50% { opacity:0.85; box-shadow:0 0 0 6px rgba(220,38,38,0); } }
+        .gd-mic-recording { animation: mic-pulse 1.2s ease-in-out infinite; }
         .gd-hint-col { display: none; }
         @media (min-width: 768px) {
           .gd-layout { flex-direction: row !important; }
@@ -842,32 +908,60 @@ export default function GDPage() {
               flexShrink: 0,
             }}
           >
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-              placeholder="あなたの意見を入力（Enterで送信、Shift+Enterで改行）"
-              rows={3}
-              disabled={isLoading}
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-                fontFamily: "inherit",
-                resize: "none",
-                outline: "none",
-                color: "#1f2933",
-                lineHeight: 1.6,
-                marginBottom: 8,
-              }}
-            />
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                placeholder="あなたの意見を入力（Enterで送信、Shift+Enterで改行）"
+                rows={3}
+                disabled={isLoading}
+                style={{
+                  flex: 1,
+                  border: "1px solid #d1d5db",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  fontSize: 14,
+                  fontFamily: "inherit",
+                  resize: "none",
+                  outline: "none",
+                  color: "#1f2933",
+                  lineHeight: 1.6,
+                }}
+              />
+              {hasSpeechSupport && (
+                <button
+                  onClick={toggleRecording}
+                  disabled={isLoading}
+                  className={isRecording ? "gd-mic-recording" : undefined}
+                  title={isRecording ? "録音停止" : "音声入力"}
+                  style={{
+                    flexShrink: 0,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 10,
+                    border: "none",
+                    background: isRecording ? "#dc2626" : "#f3f4f6",
+                    color: isRecording ? "#fff" : "#374151",
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  {/* Mic icon */}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm6 9a1 1 0 0 1 2 0 8 8 0 0 1-7 7.938V20h2a1 1 0 0 1 0 2H9a1 1 0 0 1 0-2h2v-2.062A8 8 0 0 1 4 10a1 1 0 0 1 2 0 6 6 0 0 0 12 0z"/>
+                  </svg>
+                </button>
+              )}
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={sendMessage}

@@ -19,12 +19,15 @@ export default function Home() {
       setDueCount(records.filter(isDue).length);
     };
     update();
-    // refresh when returning to page
+    // ページにフォーカスが戻ったときに件数を更新する理由：
+    // 別タブで学習して戻ってきた場合にバッジ数が古いままにならないようにするため。
     window.addEventListener("focus", update);
     return () => window.removeEventListener("focus", update);
   }, []);
 
-  // refresh due count when switching tabs
+  // タブ切り替えを関数で包んだ理由：
+  // 「復習」タブに移動した瞬間にdue件数を再計算し、バッジを最新にするため。
+  // setModeだけ直接呼ぶと再計算タイミングが遅れることがある。
   const switchMode = (m: Mode) => {
     setMode(m);
     if (m === "review") {

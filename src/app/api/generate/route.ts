@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 const client = new Anthropic();
 
+// Tool Use方式を使う理由：
+// システムプロンプトで「JSONを返して」と指示するだけだと、Claudeが
+// 前置きや補足を混ぜることがある。Tool Useで返却スキーマを強制すると
+// {front, back, explanation} の形式が必ず守られる。
 const FLASHCARD_TOOL = {
   name: "output_flashcards",
   description: "フラッシュカードを出力する",
@@ -60,9 +64,14 @@ export async function POST(req: NextRequest) {
   try {
     if (type === "flashcard") {
       const msg = await client.messages.create({
+        // Haikuを使う理由：フラッシュカード生成は単純なタスクなので
+        // 高性能なSonnetは不要。Haikuは安くて速い。
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1024,
         tools: [FLASHCARD_TOOL],
+        // tool_choice で特定のツールを強制する理由：
+        // "auto"だとClaudeがツールを使わず普通のテキストを返す場合がある。
+        // 必ずJSONで返させるために使用を強制している。
         tool_choice: { type: "tool", name: "output_flashcards" },
         messages: [
           {

@@ -1,3 +1,7 @@
+// SRM = Spaced Repetition Memory（間隔反復学習）
+// エビングハウスの忘却曲線に基づく設計：正解するほど次回復習までの間隔を長くし、
+// 間違えたらまた1日後に戻す。これにより「ちょうど忘れかけた時に復習」が実現する。
+
 export type SRMRecord = {
   id: string;
   correct: number;
@@ -9,8 +13,14 @@ export type SRMRecord = {
 
 export type MasteryLevel = "unseen" | "learning" | "consolidating" | "mastered";
 
+// 連続正解数をインデックスとして次の復習間隔（日数）を決定する。
+// 例：1回正解→3日後、3回連続正解→14日後、5回以上→60日後。
+// この数列はSM-2アルゴリズムを簡略化したもの。
 const INTERVALS = [1, 3, 7, 14, 30, 60];
 
+// UTCではなくJST（日本時間）で日付を計算する理由：
+// 深夜0時をまたいだ際に「今日」の判定がずれないようにするため。
+// サーバー側のタイムゾーンに依存しない実装にしている。
 function getTodayJST(): string {
   const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   return jst.toISOString().slice(0, 10);
@@ -22,9 +32,16 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// localStorageを使う理由：
+// バックエンドDB（PostgreSQL等）を用意すると、サーバー費用・ログイン機能・
+// データ同期が必要になる。個人学習ツールとして使う前提なら、
+// ブラウザ内蔵のlocalStorageで十分。設定・開発ゼロで永続化できる。
 const KEY_PREFIX = "srm_";
 
 export function getRecord(id: string): SRMRecord | null {
+  // typeof window === "undefined" チェックの理由：
+  // Next.jsはサーバーサイドでもこのコードを実行することがある。
+  // サーバー環境にはlocalStorageが存在しないためクラッシュを防ぐ。
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(KEY_PREFIX + id);

@@ -20,7 +20,30 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/gd/chat -X POST -H \"Content-Type: application/json\" -d '{\"theme\":\"test\",\"history\":[],\"userMessage\":\"hello\",\"mode\":\"discuss\"}')",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Read(//Users/abetakuma/**)",
+      "Bash(npx create-next-app@latest sae-abe --typescript --tailwind --app --no-src-dir --no-eslint)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(npx create-next-app@latest takuma-abe --typescript --tailwind --app --no-src-dir --no-eslint)",
+      "Bash(diskutil info *)",
+      "Bash(docker system *)",
+      "Bash(sfltool dumpbtm *)",
+      "Bash(awk '{print $3, $4, $11}')",
+      "Bash(sort -k1 -rn)",
+      "Bash(brew services *)",
+      "Bash(pg_lsclusters)",
+      "Bash(launchctl list *)",
+      "Bash(vm_stat)",
+      "Bash(sysctl hw.memsize)",
+      "Bash(awk '{print $4, $11}')",
+      "Bash(sysctl vm.swapusage)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/boki)",
+      "Skill(claude-in-chrome)",
+      "Bash(kill 81391)",
+      "Bash(kill 81712)",
+      "Bash(git -C /Users/abetakuma/shindan-zaimu status)",
+      "Bash(git -C /Users/abetakuma/shindan-zaimu diff --stat HEAD)"
     ]
   }
 }
