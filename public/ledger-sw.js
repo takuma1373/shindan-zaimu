@@ -1,4 +1,4 @@
-const CACHE_NAME = "ledger-cache-v1";
+const CACHE_NAME = "ledger-cache-v2";
 const APP_SHELL = ["/ledger", "/ledger-manifest.json", "/ledger/icon-192", "/ledger/icon-512"];
 const ENTRIES_API = "/api/ledger/entries";
 
@@ -17,38 +17,25 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ネットワーク優先: 最新を取りに行き、取れた分をキャッシュへ保存。オフライン時のみキャッシュへフォールバック。
+function networkFirst(event) {
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-
-  // 仕訳一覧APIはネットワーク優先、オフライン時のみキャッシュにフォールバック
-  if (url.pathname === ENTRIES_API) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        })
-        .catch(() => caches.match(request))
-    );
-    return;
-  }
-
-  // アプリシェル・静的アセットはキャッシュ優先
-  if (url.pathname.startsWith("/ledger")) {
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((response) => {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-            return response;
-          })
-      )
-    );
+  if (url.pathname === ENTRIES_API || url.pathname.startsWith("/ledger")) {
+    networkFirst(event);
   }
 });
