@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AccountCombobox from "@/components/shiwake/AccountCombobox";
 
 interface Line {
   account: string;
@@ -50,19 +51,11 @@ function LinesEditor({
         {title}
       </span>
       {lines.map((line, i) => (
-        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          <input
-            type="text"
+        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "flex-start" }}>
+          <AccountCombobox
             value={line.account}
-            onChange={(e) => updateLine(i, "account", e.target.value)}
-            placeholder="科目名"
-            style={{
-              flex: 1,
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: "1px solid #e2e5ea",
-              fontSize: 14,
-            }}
+            onChange={(v) => updateLine(i, "account", v)}
+            placeholder="科目名（タップで候補）"
           />
           <input
             type="number"
@@ -71,18 +64,26 @@ function LinesEditor({
             onChange={(e) => updateLine(i, "amount", e.target.value)}
             placeholder="金額"
             style={{
-              width: 110,
-              padding: "8px 10px",
+              width: 100,
+              boxSizing: "border-box",
+              padding: "12px 10px",
               borderRadius: 8,
               border: "1px solid #e2e5ea",
-              fontSize: 14,
+              fontSize: 16,
             }}
           />
           {lines.length > 1 && (
             <button
               type="button"
               onClick={() => removeLine(i)}
-              style={{ border: "none", background: "transparent", color: "#dc2626", fontSize: 12, padding: "0 4px" }}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#dc2626",
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "12px 6px",
+              }}
             >
               削除
             </button>
@@ -97,7 +98,7 @@ function LinesEditor({
           background: "transparent",
           color: "#2563eb",
           borderRadius: 8,
-          padding: "6px 10px",
+          padding: "10px 14px",
           fontSize: 12,
           fontWeight: 600,
         }}
@@ -208,7 +209,8 @@ export default function ShiwakePage() {
                 padding: "8px 10px",
                 borderRadius: 8,
                 border: "1px solid #e2e5ea",
-                fontSize: 14,
+                fontSize: 16,
+                boxSizing: "border-box",
                 resize: "vertical",
               }}
             />
@@ -225,12 +227,12 @@ export default function ShiwakePage() {
             disabled={submitting}
             style={{
               width: "100%",
-              padding: "10px 0",
+              padding: "14px 0",
               borderRadius: 8,
               border: "none",
               background: submitting ? "#93c5fd" : "#2563eb",
               color: "#fff",
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 700,
             }}
           >
@@ -303,12 +305,12 @@ export default function ShiwakePage() {
                   disabled={submitting}
                   style={{
                     flex: 1,
-                    padding: "8px 0",
+                    padding: "12px 0",
                     borderRadius: 8,
                     border: "1px solid #e2e5ea",
                     background: "#fff",
                     color: "#374151",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
                   }}
                 >
@@ -320,12 +322,12 @@ export default function ShiwakePage() {
                 onClick={handleReset}
                 style={{
                   flex: 1,
-                  padding: "8px 0",
+                  padding: "12px 0",
                   borderRadius: 8,
                   border: "1px solid #e2e5ea",
                   background: "#fff",
                   color: "#374151",
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 600,
                 }}
               >
