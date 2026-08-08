@@ -43,7 +43,17 @@
       "Bash(kill 81391)",
       "Bash(kill 81712)",
       "Bash(git -C /Users/abetakuma/shindan-zaimu status)",
-      "Bash(git -C /Users/abetakuma/shindan-zaimu diff --stat HEAD)"
+      "Bash(git -C /Users/abetakuma/shindan-zaimu diff --stat HEAD)",
+      "Bash(curl -s http://localhost:3000/ledger-manifest.json)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type}\\\\n\" http://localhost:3000/ledger/icon-192)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type}\\\\n\" http://localhost:3000/ledger/icon-512)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type}\\\\n\" http://localhost:3000/ledger-sw.js)",
+      "Bash(curl -s http://localhost:3000/api/ledger/entries)",
+      "Bash(set -e)",
+      "Bash(curl -s -X POST http://localhost:3000/api/ledger/entries -H 'Content-Type: application/json' -d '{\"date\":\"2026-08-01\",\"debit\":\"cash\",\"credit\":\"capital\",\"amount\":300000,\"memo\":\"開始残高\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/ledger/entries -H 'Content-Type: application/json' -d '{\"date\":\"2026-08-05\",\"debit\":\"bank\",\"credit\":\"salary\",\"amount\":250000,\"memo\":\"8月給与\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/ledger/entries -H 'Content-Type: application/json' -d '{\"date\":\"2026-08-06\",\"debit\":\"food\",\"credit\":\"card\",\"amount\":8000,\"memo\":\"スーパー\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/ledger/entries -H 'Content-Type: application/json' -d '{\"date\":\"2026-08-06\",\"debit\":\"cash\",\"credit\":\"cash\",\"amount\":1000,\"memo\":\"test\"}')"
     ]
   }
 }

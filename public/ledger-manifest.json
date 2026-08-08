@@ -1,0 +1,16 @@
+{
+  "name": "複式簿記家計簿",
+  "short_name": "簿記家計簿",
+  "description": "仕訳→元帳→試算表→BS/PLの流れで管理する複式簿記の家計簿",
+  "start_url": "/ledger",
+  "scope": "/ledger",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "/ledger/icon-192", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/ledger/icon-192", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/ledger/icon-512", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/ledger/icon-512", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
