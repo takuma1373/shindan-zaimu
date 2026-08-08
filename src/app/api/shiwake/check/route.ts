@@ -56,8 +56,9 @@ function validateShiwakeInput(body: CheckRequestBody): string | null {
   return null;
 }
 
-// gd/chat/route.ts と同じ理由: Claudeが```json```でコードフェンスを付けて返すことがあるため、
-// 素直なJSON.parseに失敗したらフェンスを除去して再試行する。
+// gd/chat/route.ts と同じ理由: Claudeが```json```でコードフェンスを付けたり、指示に反して
+// JSONの前に説明文（例:「まず正解を自分で計算すると...」）を付けて返すことがあるため、
+// 素直なJSON.parseに失敗したらフェンス除去→それでも失敗したら最初の{〜最後の}を抜き出して再試行する。
 function parseJSON(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -66,7 +67,16 @@ function parseJSON(text: string): unknown {
       .replace(/```json\s*/gi, "")
       .replace(/```\s*/g, "")
       .trim();
-    return JSON.parse(cleaned);
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+      if (start === -1 || end === -1 || end <= start) {
+        throw new Error("JSON object not found in response");
+      }
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
   }
 }
 
@@ -177,6 +187,9 @@ const ACCOUNTING_REFERENCE_NOTES = `
 繰延資産を償却する仕訳は、借方に費用（P/L）、貸方に当該繰延資産（B/S）を計上する。日本の簿記教育・実務では、借方・貸方に同一の勘定科目名（例: 借方「株式交付費」／貸方「株式交付費」）を用いる書き方が標準的であり、これは正しい処理である。「相殺されて意味がない」「借方・貸方は別科目にすべき」等の理由でこれを誤りとして扱ってはならない。「株式交付費償却」のように償却専用の科目名を使う書き方も、教材によっては採用されるため正解として扱ってよい。
 `;
 
+// isCorrect(正解/yes)判定の基準: 科目名の表記ゆれは許容、金額は税額・按分・償却計算まで含めて厳密照合、
+// 複合仕訳は全体の妥当性で判断、級相応の厳密さを適用。correctDebits/correctCreditsをユーザー入力を見る前に
+// 先に算出させ、それとの比較でisCorrectを決めさせることで、結論に迎合した基準の緩みを防いでいる（下記promptの192行目）。
 function buildSystemPrompt(level: string, attemptNumber: number): string {
   return `あなたは日本の商業簿記・工業簿記（日商簿記3級〜1級）に精通した、仕訳の採点者です。
 ユーザーが入力した取引内容に対して、ユーザーが入力した仕訳（借方・貸方の科目と金額）が会計上正しいかどうかを判定してください。

@@ -37,9 +37,10 @@ function getSystemPrompt(mode: string, theme: string): string {
 
 // parseJSONを別関数として切り出した理由：
 // プロンプトで「JSONのみ返せ」と指示しても、Claudeが
-// ```json ... ``` のようなマークダウン記法で囲むことがある。
-// まず素直にJSON.parseを試み、失敗したらコードフェンスを除去して再試行する。
-// この2段階処理をPOST本体に書くと読みにくくなるため関数に分離した。
+// ```json ... ``` のようなマークダウン記法で囲んだり、JSONの前に説明文を付けて返すことがある。
+// まず素直にJSON.parseを試み、失敗したらコードフェンスを除去して再試行、
+// それでも失敗したら最初の{〜最後の}を抜き出して再試行する。
+// この段階処理をPOST本体に書くと読みにくくなるため関数に分離した。
 function parseJSON(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -48,7 +49,16 @@ function parseJSON(text: string): unknown {
       .replace(/```json\s*/gi, "")
       .replace(/```\s*/g, "")
       .trim();
-    return JSON.parse(cleaned);
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+      if (start === -1 || end === -1 || end <= start) {
+        throw new Error("JSON object not found in response");
+      }
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
   }
 }
 
