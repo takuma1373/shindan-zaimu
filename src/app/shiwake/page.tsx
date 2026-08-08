@@ -9,13 +9,18 @@ interface Line {
 }
 
 interface CheckResult {
-  isCorrect: boolean;
+  mode: "graded" | "inferred";
   comment: string;
+  // graded モード（取引内容が入力されている場合）
+  isCorrect?: boolean;
   hint?: string;
   usageContext?: string;
   correctDebits?: { account: string; amount: number }[];
   correctCredits?: { account: string; amount: number }[];
   explanation?: string;
+  // inferred モード（取引内容が未入力の場合）
+  isPlausible?: boolean;
+  inferredTransaction?: string;
 }
 
 const emptyLine = (): Line => ({ account: "", amount: "" });
@@ -46,59 +51,76 @@ function LinesEditor({
   }
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ flex: 1, minWidth: 0 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>
         {title}
       </span>
       {lines.map((line, i) => (
-        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "flex-start" }}>
-          <AccountCombobox
-            value={line.account}
-            onChange={(v) => updateLine(i, "account", v)}
-            placeholder="科目名（タップで候補）"
-          />
-          <input
-            type="number"
-            inputMode="numeric"
-            value={line.amount}
-            onChange={(e) => updateLine(i, "amount", e.target.value)}
-            placeholder="金額"
-            style={{
-              width: 100,
-              boxSizing: "border-box",
-              padding: "12px 10px",
-              borderRadius: 8,
-              border: "1px solid #e2e5ea",
-              fontSize: 16,
-            }}
-          />
-          {lines.length > 1 && (
-            <button
-              type="button"
-              onClick={() => removeLine(i)}
+        <div
+          key={i}
+          style={{
+            marginBottom: 8,
+            padding: 8,
+            borderRadius: 8,
+            border: "1px solid #f1f5f9",
+            background: "#f8fafc",
+          }}
+        >
+          <div style={{ marginBottom: 6 }}>
+            <AccountCombobox
+              value={line.account}
+              onChange={(v) => updateLine(i, "account", v)}
+              placeholder="科目名（タップで候補）"
+            />
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={line.amount}
+              onChange={(e) => updateLine(i, "amount", e.target.value)}
+              placeholder="金額"
               style={{
-                border: "none",
-                background: "transparent",
-                color: "#dc2626",
-                fontSize: 13,
-                fontWeight: 600,
-                padding: "12px 6px",
+                flex: 1,
+                minWidth: 0,
+                boxSizing: "border-box",
+                padding: "12px 10px",
+                borderRadius: 8,
+                border: "1px solid #e2e5ea",
+                fontSize: 16,
               }}
-            >
-              削除
-            </button>
-          )}
+            />
+            {lines.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeLine(i)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#dc2626",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: "12px 6px",
+                  flexShrink: 0,
+                }}
+              >
+                削除
+              </button>
+            )}
+          </div>
         </div>
       ))}
       <button
         type="button"
         onClick={addLine}
         style={{
+          width: "100%",
+          boxSizing: "border-box",
           border: "1px dashed #cbd5e1",
           background: "transparent",
           color: "#2563eb",
           borderRadius: 8,
-          padding: "10px 14px",
+          padding: "10px 8px",
           fontSize: 12,
           fontWeight: 600,
         }}
@@ -155,7 +177,7 @@ export default function ShiwakePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "判定に失敗しました");
       setResult(data);
-      if (!revealAnswer && !data.isCorrect) {
+      if (!revealAnswer && data.mode === "graded" && !data.isCorrect) {
         setAttemptNumber((n) => n + 1);
       }
     } catch (err) {
@@ -197,12 +219,12 @@ export default function ShiwakePage() {
         <div style={{ background: "#fff", borderRadius: 12, padding: 16, border: "1px solid #e2e5ea" }}>
           <label style={{ display: "block", marginBottom: 12 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>
-              取引内容
+              取引内容（任意）
             </span>
             <textarea
               value={transaction}
               onChange={(e) => setTransaction(e.target.value)}
-              placeholder="例）商品100,000円を掛けで仕入れた。消費税10%、税抜方式で処理する。"
+              placeholder="空欄でもOK。空欄の場合は、入力した仕訳からAIが取引内容を推測して解説します。&#10;例）商品100,000円を掛けで仕入れた。消費税10%、税抜方式で処理する。"
               rows={3}
               style={{
                 width: "100%",
@@ -216,8 +238,11 @@ export default function ShiwakePage() {
             />
           </label>
 
-          <LinesEditor title="借方" lines={debits} onChange={setDebits} />
-          <LinesEditor title="貸方" lines={credits} onChange={setCredits} />
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <LinesEditor title="借方" lines={debits} onChange={setDebits} />
+            <div style={{ width: 1, background: "#e2e5ea", flexShrink: 0 }} />
+            <LinesEditor title="貸方" lines={credits} onChange={setCredits} />
+          </div>
 
           {error && <p style={{ color: "#dc2626", fontSize: 12, marginBottom: 10 }}>{error}</p>}
 
@@ -236,11 +261,65 @@ export default function ShiwakePage() {
               fontWeight: 700,
             }}
           >
-            {submitting ? "判定中..." : "判定する"}
+            {submitting ? "処理中..." : transaction.trim() ? "判定する" : "この仕訳を解説する"}
           </button>
         </div>
 
-        {result && (
+        {result && result.mode === "inferred" && (
+          <div
+            style={{
+              marginTop: 12,
+              background: "#fff",
+              borderRadius: 12,
+              border: `1px solid ${result.isPlausible === false ? "#dc2626" : "#e2e5ea"}`,
+              padding: 16,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", marginBottom: 8 }}>
+              {result.isPlausible === false ? "この組み合わせは少し不自然です" : "この仕訳の解説"}
+            </div>
+
+            {result.inferredTransaction && (
+              <div style={{ background: "#eff6ff", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", marginBottom: 2 }}>
+                  推測される取引内容
+                </div>
+                <p style={{ fontSize: 13, color: "#374151" }}>{result.inferredTransaction}</p>
+              </div>
+            )}
+
+            <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>{result.comment}</p>
+
+            {result.usageContext && (
+              <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 2 }}>
+                  この仕訳が使われる場面
+                </div>
+                <p style={{ fontSize: 12, color: "#374151" }}>{result.usageContext}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleReset}
+              style={{
+                width: "100%",
+                marginTop: 8,
+                padding: "12px 0",
+                borderRadius: 8,
+                border: "1px solid #e2e5ea",
+                background: "#fff",
+                color: "#374151",
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              新しい仕訳を入力する
+            </button>
+          </div>
+        )}
+
+        {result && result.mode === "graded" && (
           <div
             style={{
               marginTop: 12,

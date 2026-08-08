@@ -27,7 +27,6 @@ function validateLines(lines: ShiwakeLine[] | undefined, label: string): string 
 }
 
 function validateShiwakeInput(body: CheckRequestBody): string | null {
-  if (!body.transaction || !body.transaction.trim()) return "取引内容を入力してください";
   if (!body.level || !["3", "2", "1"].includes(body.level)) return "級を選択してください";
 
   const debitError = validateLines(body.debits, "借方");
@@ -77,6 +76,23 @@ function buildSystemPrompt(level: string, attemptNumber: number): string {
 {"isCorrect":true/false,"comment":"採点コメント（100字程度、何が合っていて何が違うかを具体的に）","hint":"不正解時のヒント（正解の科目名・金額を直接明かさない範囲で考え方の方向性を示す。60字程度。正解の場合は空文字でよい）","usageContext":"ユーザーが入力した科目の組み合わせが実務上どのような場面で使われるかの解説（100字程度）","correctDebits":[{"account":"科目名","amount":数値}],"correctCredits":[{"account":"科目名","amount":数値}],"explanation":"正解の考え方の解説（150字程度）"}`;
 }
 
+// 取引内容が未入力の場合: 正誤判定の対象となる「正解」が存在しないため、
+// 仕訳（借方・貸方の科目と金額）だけから、ユーザーが何を記録しようとしたのかを解釈・解説するモード。
+function buildInferSystemPrompt(level: string): string {
+  return `あなたは日本の商業簿記・工業簿記（日商簿記3級〜1級）に精通した会計の専門家です。
+ユーザーは取引内容を記述せず、仕訳（借方・貸方の科目と金額）だけを入力しました。この仕訳だけを手がかりに、ユーザーが何をしようとしていたのか（どんな取引を記録しようとしたのか）を解釈して解説してください。
+
+解説方針:
+- 借方・貸方の科目名・金額の組み合わせから、最も可能性が高い具体的な取引内容を推測する（例：「商品を掛けで仕入れた取引と考えられます」）
+- 出題レベル「日商簿記${level}級」の学習者を想定した解説の厳密さにする
+- 借方合計と貸方合計は一致している前提だが、科目の組み合わせ自体が実務上ほぼあり得ない・会計的に矛盾している場合は、isPlausibleをfalseにし、その理由をcommentで具体的に指摘する
+- 曖昧で複数の解釈があり得る場合は、最も一般的な解釈を挙げたうえでその旨に触れる
+- 勘定科目名の表記ゆれ（一般的な同義語・略称）は許容する
+
+純粋なJSONのみで返答してください。マークダウン、コードブロック、前置き文は一切不要です。
+{"isPlausible":true/false,"inferredTransaction":"この仕訳が表していると考えられる具体的な取引内容の推測（100字程度）","usageContext":"この科目の組み合わせが実務上どのような場面で使われるかの解説（100字程度）","comment":"総評。isPlausibleがfalseの場合はどこが不自然かを具体的に（100字程度）"}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: CheckRequestBody = await req.json();
@@ -87,6 +103,40 @@ export async function POST(req: NextRequest) {
     }
 
     const level = body.level!;
+    const hasTransaction = !!body.transaction && !!body.transaction.trim();
+
+    const entriesText = `借方: ${formatLines(body.debits!)}
+貸方: ${formatLines(body.credits!)}`;
+
+    if (!hasTransaction) {
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 800,
+        system: buildInferSystemPrompt(level),
+        messages: [{ role: "user", content: `【ユーザーが入力した仕訳】\n${entriesText}` }],
+      });
+
+      const textContent = response.content.find((c) => c.type === "text");
+      if (!textContent || textContent.type !== "text") {
+        throw new Error("No text content in response");
+      }
+
+      const parsed = parseJSON(textContent.text) as {
+        isPlausible: boolean;
+        inferredTransaction: string;
+        usageContext: string;
+        comment: string;
+      };
+
+      return NextResponse.json({
+        mode: "inferred",
+        isPlausible: parsed.isPlausible,
+        inferredTransaction: parsed.inferredTransaction,
+        usageContext: parsed.usageContext,
+        comment: parsed.comment,
+      });
+    }
+
     const attemptNumber = body.attemptNumber && body.attemptNumber > 0 ? body.attemptNumber : 1;
     const revealAnswer = body.revealAnswer === true;
 
@@ -94,8 +144,7 @@ export async function POST(req: NextRequest) {
 ${body.transaction}
 
 【ユーザーが入力した仕訳】
-借方: ${formatLines(body.debits!)}
-貸方: ${formatLines(body.credits!)}`;
+${entriesText}`;
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
@@ -120,6 +169,7 @@ ${body.transaction}
     };
 
     const result: Record<string, unknown> = {
+      mode: "graded",
       isCorrect: parsed.isCorrect,
       comment: parsed.comment,
       usageContext: parsed.usageContext,
