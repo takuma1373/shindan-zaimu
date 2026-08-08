@@ -1,4 +1,5 @@
 import { CATEGORY_INFO, DEFAULT_ACCOUNTS, type Account, type Category } from "@/data/ledgerAccounts";
+import { KEYWORD_DICTIONARY } from "@/data/keywordDictionary";
 
 export interface JournalEntry {
   id: string;
@@ -11,8 +12,18 @@ export interface JournalEntry {
 
 export type NewJournalEntry = Omit<JournalEntry, "id">;
 
+function isValidDateString(date: string): boolean {
+  const match = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const [, y, m, d] = match;
+  const parsed = new Date(Number(y), Number(m) - 1, Number(d));
+  return (
+    parsed.getFullYear() === Number(y) && parsed.getMonth() === Number(m) - 1 && parsed.getDate() === Number(d)
+  );
+}
+
 // ────────────────────────────────────────────────────────────────
-// バリデーション: 借方科目≠貸方科目、金額は正の数、日付・借方・貸方すべて必須
+// バリデーション: 明らかな入力ミスのみを検知する（会計的妥当性は見ない）
 // ────────────────────────────────────────────────────────────────
 export function validateEntry(entry: {
   date?: string;
@@ -21,11 +32,42 @@ export function validateEntry(entry: {
   amount?: number;
 }): string | null {
   if (!entry.date) return "日付を入力してください";
+  if (!isValidDateString(entry.date)) return "日付の形式が正しくありません";
   if (!entry.debit) return "借方科目を選択してください";
   if (!entry.credit) return "貸方科目を選択してください";
-  if (entry.debit === entry.credit) return "借方科目と貸方科目は異なる科目にしてください";
-  if (!entry.amount || entry.amount <= 0) return "金額は正の数で入力してください";
+  if (entry.debit === entry.credit) return "借方科目と貸方科目に同じ科目は選べません";
+  if (entry.amount === undefined || entry.amount === null || Number.isNaN(entry.amount) || entry.amount === 0)
+    return "金額を入力してください";
+  if (entry.amount < 0) return "金額に負の数は入力できません";
   return null;
+}
+
+// ────────────────────────────────────────────────────────────────
+// 摘要メモのキーワードから科目候補を提案する（外部AI不使用・キーワード辞書方式）
+// ────────────────────────────────────────────────────────────────
+export interface AccountSuggestion {
+  account: Account;
+  field: "debit" | "credit";
+}
+
+export function suggestAccounts(memo: string, accounts: Account[]): AccountSuggestion[] {
+  const trimmed = memo.trim();
+  if (!trimmed) return [];
+  const lowerMemo = trimmed.toLowerCase();
+
+  const suggestions: AccountSuggestion[] = [];
+  const seen = new Set<string>();
+  for (const rule of KEYWORD_DICTIONARY) {
+    if (seen.has(rule.accountId)) continue;
+    const matched = rule.keywords.some((k) => lowerMemo.includes(k.toLowerCase()));
+    if (!matched) continue;
+    const account = accounts.find((a) => a.id === rule.accountId);
+    if (!account) continue;
+    suggestions.push({ account, field: rule.field });
+    seen.add(rule.accountId);
+    if (suggestions.length >= 3) break;
+  }
+  return suggestions;
 }
 
 // 勘定科目ごとの借方合計・貸方合計・差引残高（借方-貸方）を計算

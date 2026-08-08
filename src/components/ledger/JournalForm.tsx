@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Account } from "@/data/ledgerAccounts";
 import type { JournalEntry, NewJournalEntry } from "@/lib/ledger";
-import { validateEntry } from "@/lib/ledger";
+import { suggestAccounts, validateEntry } from "@/lib/ledger";
 import GroupedAccountOptions from "./GroupedAccountOptions";
 
 const fmt = (n: number) => `${n.toLocaleString("ja-JP")}円`;
@@ -64,6 +64,8 @@ export default function JournalForm({ accounts, entries, onAdd, onDelete }: Prop
   const [submitting, setSubmitting] = useState(false);
 
   const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? id;
+
+  const suggestions = useMemo(() => suggestAccounts(memo, accounts), [memo, accounts]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -156,6 +158,32 @@ export default function JournalForm({ accounts, entries, onAdd, onDelete }: Prop
             }}
           />
         </label>
+
+        {suggestions.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, marginTop: -4 }}>
+            {suggestions.map((s) => (
+              <button
+                key={s.account.id}
+                type="button"
+                onClick={() => (s.field === "debit" ? setDebit(s.account.id) : setCredit(s.account.id))}
+                style={{
+                  border: "1px solid #bfdbfe",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  borderRadius: 999,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {s.account.name}
+                <span style={{ color: "#93c5fd", marginLeft: 4 }}>
+                  ({s.field === "debit" ? "借方" : "貸方"})
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {error && <p style={{ color: "#dc2626", fontSize: 12, marginBottom: 10 }}>{error}</p>}
 

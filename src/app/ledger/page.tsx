@@ -8,13 +8,15 @@ import GeneralLedgerView from "@/components/ledger/GeneralLedgerView";
 import TrialBalanceView from "@/components/ledger/TrialBalanceView";
 import FinancialStatements from "@/components/ledger/FinancialStatements";
 import AccountMaster, { type AccountInput } from "@/components/ledger/AccountMaster";
+import FixedAssetsView from "@/components/ledger/FixedAssetsView";
 
-type Mode = "journal" | "ledger" | "trial" | "statements" | "accounts";
+type Mode = "journal" | "ledger" | "trial" | "statements" | "accounts" | "fixedAssets";
 
 export default function LedgerPage() {
   const [mode, setMode] = useState<Mode>("journal");
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [usefulLifeOverrides, setUsefulLifeOverrides] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,14 +24,27 @@ export default function LedgerPage() {
     Promise.all([
       fetch("/api/ledger/entries").then((res) => res.json()),
       fetch("/api/ledger/accounts").then((res) => res.json()),
+      fetch("/api/ledger/fixed-assets").then((res) => res.json()),
     ])
-      .then(([entriesData, accountsData]) => {
+      .then(([entriesData, accountsData, fixedAssetsData]) => {
         setEntries(entriesData.entries ?? []);
         setAccounts(accountsData.accounts ?? []);
+        setUsefulLifeOverrides(fixedAssetsData.usefulLifeOverrides ?? {});
       })
       .catch(() => setError("データの取得に失敗しました"))
       .finally(() => setLoading(false));
   }, []);
+
+  async function updateUsefulLife(entryId: string, years: number) {
+    const res = await fetch("/api/ledger/fixed-assets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entryId, usefulLifeYears: years }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "耐用年数の更新に失敗しました");
+    setUsefulLifeOverrides(data.usefulLifeOverrides ?? {});
+  }
 
   async function addEntry(input: NewJournalEntry) {
     const res = await fetch("/api/ledger/entries", {
@@ -101,6 +116,12 @@ export default function LedgerPage() {
         <button className={`tab ${mode === "accounts" ? "active" : ""}`} onClick={() => setMode("accounts")}>
           科目マスタ
         </button>
+        <button
+          className={`tab ${mode === "fixedAssets" ? "active" : ""}`}
+          onClick={() => setMode("fixedAssets")}
+        >
+          固定資産
+        </button>
       </nav>
 
       <section className="content">
@@ -119,6 +140,14 @@ export default function LedgerPage() {
             onAdd={addAccount}
             onEdit={editAccount}
             onDelete={deleteAccount}
+          />
+        )}
+        {!loading && mode === "fixedAssets" && (
+          <FixedAssetsView
+            accounts={accounts}
+            entries={entries}
+            usefulLifeOverrides={usefulLifeOverrides}
+            onUpdateUsefulLife={updateUsefulLife}
           />
         )}
       </section>
