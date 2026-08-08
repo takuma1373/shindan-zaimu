@@ -50,6 +50,23 @@ function PerspectiveList({ perspectives }: { perspectives: Perspective[] }) {
 
 const emptyLine = (): Line => ({ account: "", amount: "" });
 
+// 全角数字は半角に正規化してから数字以外を除去する（ブラウザ標準の全角→半角変換は
+// 3行目以降の<input type="number">で効かないことがあるため、自前で正規化する）
+function normalizeDigits(input: string): string {
+  return input.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
+}
+
+function toRawAmount(input: string): string {
+  return normalizeDigits(input).replace(/[^\d]/g, "");
+}
+
+function formatAmount(raw: string): string {
+  if (!raw) return "";
+  return Number(raw).toLocaleString("ja-JP");
+}
+
+const QUICK_AMOUNTS = [1000, 10000, 100000];
+
 const LEVELS: { value: "3" | "2" | "1"; label: string }[] = [
   { value: "3", label: "3級" },
   { value: "2", label: "2級" },
@@ -73,6 +90,10 @@ function LinesEditor({
   }
   function removeLine(index: number) {
     onChange(lines.filter((_, i) => i !== index));
+  }
+  function addAmount(index: number, delta: number) {
+    const current = Number(lines[index].amount || "0");
+    updateLine(index, "amount", String(current + delta));
   }
 
   return (
@@ -100,10 +121,11 @@ function LinesEditor({
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
-              value={line.amount}
-              onChange={(e) => updateLine(i, "amount", e.target.value)}
+              pattern="[0-9]*"
+              value={formatAmount(line.amount)}
+              onChange={(e) => updateLine(i, "amount", toRawAmount(e.target.value))}
               placeholder="金額"
               style={{
                 flex: 1,
@@ -132,6 +154,27 @@ function LinesEditor({
                 削除
               </button>
             )}
+          </div>
+          <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+            {QUICK_AMOUNTS.map((amt) => (
+              <button
+                key={amt}
+                type="button"
+                onClick={() => addAmount(i, amt)}
+                style={{
+                  flex: 1,
+                  border: "1px solid #bfdbfe",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  borderRadius: 6,
+                  padding: "6px 4px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                +{amt.toLocaleString("ja-JP")}
+              </button>
+            ))}
           </div>
         </div>
       ))}

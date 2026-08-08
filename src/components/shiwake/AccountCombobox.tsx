@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { ALL_SHIWAKE_ACCOUNTS, COMMON_SHIWAKE_ACCOUNTS } from "@/data/shiwakeAccounts";
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 // input要素はfont-size 16px以上にしてiOS Safariの自動ズームを防ぐ。
 export default function AccountCombobox({ value, onChange, placeholder }: Props) {
   const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
 
   const suggestions = useMemo(() => {
     const q = value.trim();
@@ -23,19 +24,46 @@ export default function AccountCombobox({ value, onChange, placeholder }: Props)
   function select(account: string) {
     onChange(account);
     setOpen(false);
+    setHighlight(-1);
   }
 
   const showQuickPicks = open && !value.trim();
   const showSuggestions = open && suggestions.length > 0;
+  const activeList = showSuggestions ? suggestions : showQuickPicks ? COMMON_SHIWAKE_ACCOUNTS : [];
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (!activeList.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlight((h) => (h + 1) % activeList.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlight((h) => (h <= 0 ? activeList.length - 1 : h - 1));
+    } else if (e.key === "Enter") {
+      if (highlight >= 0 && highlight < activeList.length) {
+        e.preventDefault();
+        select(activeList[highlight]);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setHighlight(-1);
+    }
+  }
 
   return (
     <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
       <input
         type="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setHighlight(-1);
+        }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         style={{
           width: "100%",
@@ -64,15 +92,16 @@ export default function AccountCombobox({ value, onChange, placeholder }: Props)
         >
           {showQuickPicks && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 8 }}>
-              {COMMON_SHIWAKE_ACCOUNTS.map((a) => (
+              {COMMON_SHIWAKE_ACCOUNTS.map((a, idx) => (
                 <button
                   key={a}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => select(a)}
+                  onMouseEnter={() => setHighlight(idx)}
                   style={{
-                    border: "1px solid #bfdbfe",
-                    background: "#eff6ff",
+                    border: idx === highlight ? "1px solid #2563eb" : "1px solid #bfdbfe",
+                    background: idx === highlight ? "#dbeafe" : "#eff6ff",
                     color: "#2563eb",
                     borderRadius: 999,
                     padding: "8px 14px",
@@ -86,19 +115,20 @@ export default function AccountCombobox({ value, onChange, placeholder }: Props)
             </div>
           )}
           {showSuggestions &&
-            suggestions.map((a) => (
+            suggestions.map((a, idx) => (
               <button
                 key={a}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => select(a)}
+                onMouseEnter={() => setHighlight(idx)}
                 style={{
                   display: "block",
                   width: "100%",
                   textAlign: "left",
                   border: "none",
                   borderTop: "1px solid #f1f5f9",
-                  background: "#fff",
+                  background: idx === highlight ? "#eff6ff" : "#fff",
                   padding: "12px",
                   fontSize: 15,
                   color: "#1e293b",
