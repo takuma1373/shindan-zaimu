@@ -8,19 +8,44 @@ interface Line {
   amount: string;
 }
 
+interface Perspective {
+  role: "cpa" | "accountant" | "instructor";
+  comment: string;
+}
+
 interface CheckResult {
   mode: "graded" | "inferred";
-  comment: string;
+  perspectives: Perspective[];
+  usageContext?: string;
   // graded モード（取引内容が入力されている場合）
   isCorrect?: boolean;
-  hint?: string;
-  usageContext?: string;
   correctDebits?: { account: string; amount: number }[];
   correctCredits?: { account: string; amount: number }[];
-  explanation?: string;
   // inferred モード（取引内容が未入力の場合）
   isPlausible?: boolean;
   inferredTransaction?: string;
+}
+
+const PERSONA_META: Record<Perspective["role"], { label: string; color: string }> = {
+  cpa: { label: "公認会計士", color: "#4f46e5" },
+  accountant: { label: "大企業の経理担当", color: "#0d9488" },
+  instructor: { label: "予備校講師", color: "#ea580c" },
+};
+
+function PerspectiveList({ perspectives }: { perspectives: Perspective[] }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+      {perspectives.map((p) => {
+        const meta = PERSONA_META[p.role] ?? { label: p.role, color: "#6b7280" };
+        return (
+          <div key={p.role} style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: meta.color, marginBottom: 2 }}>{meta.label}</div>
+            <p style={{ fontSize: 12, color: "#374151" }}>{p.comment}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 const emptyLine = (): Line => ({ account: "", amount: "" });
@@ -288,11 +313,11 @@ export default function ShiwakePage() {
               </div>
             )}
 
-            <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>{result.comment}</p>
+            {result.perspectives && <PerspectiveList perspectives={result.perspectives} />}
 
             {result.usageContext && (
-              <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 2 }}>
+              <div style={{ background: "#eff6ff", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", marginBottom: 2 }}>
                   この仕訳が使われる場面
                 </div>
                 <p style={{ fontSize: 12, color: "#374151" }}>{result.usageContext}</p>
@@ -340,13 +365,8 @@ export default function ShiwakePage() {
             >
               {result.isCorrect ? "正解 ✓" : "不正解 ✗"}
             </div>
-            <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>{result.comment}</p>
 
-            {!result.isCorrect && result.hint && (
-              <p style={{ fontSize: 12, color: "#b45309", background: "#fffbeb", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-                ヒント: {result.hint}
-              </p>
-            )}
+            {result.perspectives && <PerspectiveList perspectives={result.perspectives} />}
 
             {result.usageContext && (
               <div style={{ background: "#eff6ff", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
@@ -370,9 +390,6 @@ export default function ShiwakePage() {
                     <EntryList lines={result.correctCredits} />
                   </div>
                 </div>
-                {result.explanation && (
-                  <p style={{ fontSize: 12, color: "#374151", marginTop: 8 }}>{result.explanation}</p>
-                )}
               </div>
             )}
 
